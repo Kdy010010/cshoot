@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classic Shooting Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            cursor: none; /* Hide default cursor */
+        }
+
+        #game-container {
+            position: relative;
+            width: 400px;
+            height: 200px;
+            border: 1px solid black;
+            overflow: hidden; /* Hide overflow to prevent scrollbars */
+        }
+
+        #gun {
+            position: absolute;
+            width: 50px;
+            height: 10px;
+            background-color: gray;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        #enemy {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background-color: red;
+            top: 50%;
+            left: 0;
+            animation: moveEnemy 2s linear infinite;
+        }
+
+        .bullet {
+            position: absolute;
+            width: 5px;
+            height: 10px;
+            background-color: black;
+        }
+
+        #crosshair {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid black;
+            border-radius: 50%;
+            pointer-events: none; /* Ignore mouse events */
+        }
+
+        @keyframes moveEnemy {
+            0% {
+                left: 0;
+            }
+            100% {
+                left: calc(100% - 30px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="gun"></div>
+        <div id="enemy"></div>
+        <div id="crosshair"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const gun = document.getElementById('gun');
+            const enemy = document.getElementById('enemy');
+            const crosshair = document.getElementById('crosshair');
+            const scoreDisplay = document.getElementById('score');
+
+            let score = 0;
+
+            // Initialize IndexedDB
+            let db;
+            const request = window.indexedDB.open('ShootingGameDB', 1);
+            request.onerror = function(event) {
+                console.error('IndexedDB error:', event.target.error);
+            };
+            request.onsuccess = function(event) {
+                db = event.target.result;
+                displayScore();
+            };
+            request.onupgradeneeded = function(event) {
+                db = event.target.result;
+                const objectStore = db.createObjectStore('scores', { keyPath: 'id', autoIncrement:true });
+                objectStore.createIndex('score', 'score', { unique: false });
+            };
+
+            // Function to shoot
+            function shoot(event) {
+                const bullet = document.createElement('div');
+                bullet.classList.add('bullet');
+                bullet.style.left = event.clientX - 2 + 'px'; // Offset to center the bullet
+                bullet.style.top = '190px'; // Position the bullet above the gun
+                document.body.appendChild(bullet);
+
+                // Animate the bullet
+                const bulletMove = setInterval(() => {
+                    bullet.style.top = parseInt(bullet.style.top) - 5 + 'px';
+                    if (parseInt(bullet.style.top) < 0) {
+                        clearInterval(bulletMove);
+                        document.body.removeChild(bullet);
+                    }
+                    // Check for collision
+                    if (
+                        parseInt(bullet.style.top) < parseInt(enemy.style.top) + 30 &&
+                        parseInt(bullet.style.left) > parseInt(enemy.style.left) &&
+                        parseInt(bullet.style.left) < parseInt(enemy.style.left) + 30
+                    ) {
+                        clearInterval(bulletMove);
+                        document.body.removeChild(bullet);
+                        resetEnemy();
+                        increaseScore();
+                    }
+                }, 10);
+            }
+
+            // Function to reset enemy position
+            function resetEnemy() {
+                enemy.style.left = '0';
+            }
+
+            // Function to increase score
+            function increaseScore() {
+                score++;
+                displayScore();
+                // Save score to IndexedDB
+                const transaction = db.transaction(['scores'], 'readwrite');
+                const objectStore = transaction.objectStore('scores');
+                const newScore = { score: score };
+                const request = objectStore.add(newScore);
+                request.onerror = function(event) {
+                    console.error('IndexedDB error:', event.target.error);
+                };
+            }
+
+            // Function to display score
+            function displayScore() {
+                scoreDisplay.textContent = 'Score: ' + score;
+            }
+
+            // Event listener for shooting
+            document.addEventListener('click', shoot);
+
+            // Event listener for mouse movement to move crosshair
+            document.addEventListener('mousemove', function (event) {
+                crosshair.style.left = event.clientX - 10 + 'px';
+                crosshair.style.top = event.clientY - 10 + 'px';
+            });
+        });
+    </script>
+</body>
+</html>
